@@ -80,8 +80,8 @@ static int usage(const char *progname) {
           "\t-L <len>      : Length of LED strips (default: 144)\n"
           "\t-i <iface>    : network interface, such as eth0, wlan0. "
           "Default eth0\n"
-          "\t-g <group>    : PixelPusher group (default: 0)\n"
-          "\t-c <controller> : PixelPusher controller (default: 0)\n"
+          "\t-G <group>    : PixelPusher group (default: 0)\n"
+          "\t-C <controller> : PixelPusher controller (default: 0)\n"
           "\t-a <artnet-universe,artnet-channel>: if used with artnet. Default 0,0\n"
           "\t-u <udp-size> : Max UDP data/packet (default %d)\n"
           "\t                Best use the maximum that works with your network (up to %d).\n",
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   int strip_len = 144;
 
   int opt;
-  while ((opt = getopt(argc, argv, "S:L:i:u:a:g:c:")) != -1) {
+  while ((opt = getopt(argc, argv, "S:L:i:u:a:G:C:")) != -1) {
     switch (opt) {
     case 'S':
       num_strips = atoi(optarg);
@@ -113,10 +113,10 @@ int main(int argc, char *argv[]) {
     case 'u':
       pp_options.udp_packet_size = atoi(optarg);
       break;
-    case 'g':
+    case 'G':
       pp_options.group = atoi(optarg);
       break;
-    case 'c':
+    case 'C':
       pp_options.controller = atoi(optarg);
       break;
     case 'a':

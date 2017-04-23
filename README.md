@@ -20,6 +20,8 @@ Options:
         -S <strips>   : Number of connected LED strips (default: 16)
         -L <len>      : Length of LED strips (default: 144)
         -i <iface>    : network interface, such as eth0, wlan0. Default eth0
+        -G <group>    : PixelPusher group (default: 0)
+        -C <controller> : PixelPusher controller (default: 0)
         -a <artnet-universe,artnet-channel>: if used with artnet. Default 0,0
         -u <udp-size> : Max UDP data/packet (default 1460)
                         Best use the maximum that works with your network (up to 65507).
