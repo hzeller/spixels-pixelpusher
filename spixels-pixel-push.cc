@@ -58,12 +58,12 @@ public:
   virtual int num_strips() const { return num_strips_; }
   virtual int num_pixel_per_strip() const { return strip_len_; }
 
-  virtual void SetPixel(int strip, int pixel,
-                        const ::pp::PixelColor &col) {
-    if (strip < 0 || strip >= num_strips_) return;
-    strips_[strip]->SetLinearValues(pixel, col.red << 8, col.green << 8, col.blue << 8);
-    // This method does gamma correction, which is best done by the client app.
-    // strips_[strip]->SetPixel(pixel, col.red, col.green, col.blue);
+  virtual void SetPixel(int strip, int pixel, const ::pp::PixelColor &col)
+  {
+    if ((strip >= 0) && (strip < num_strips_))
+    {
+	  strips_[strip]->SetPixel8(pixel, col.red, col.green, col.blue);
+	}
   }
 
   virtual void FlushFrame() {
