@@ -31,7 +31,9 @@ static const int kMaxUDPPacketSize = 65507;  // largest practical w/ IPv4 header
 static const int kDefaultUDPPacketSize = 1460;
 
 // Make faster or slower depending on how well the data lines work.
-static const int kSPIClockMhz = 4;
+// Henner had this set at 4.  This limited frame rate to about 12FPS
+// with 16 outputs and 480 LEDs/output
+static const int kSPIClockMhz = 12;
 
 // Interface to our Spixels operated LED strips.
 class APA102SpixelsDevice : public pp::OutputDevice {
@@ -59,7 +61,9 @@ public:
   virtual void SetPixel(int strip, int pixel,
                         const ::pp::PixelColor &col) {
     if (strip < 0 || strip >= num_strips_) return;
-    strips_[strip]->SetPixel(pixel, col.red, col.green, col.blue);
+    strips_[strip]->SetLinearValues(pixel, col.red << 8, col.green << 8, col.blue << 8);
+    // This method does gamma correction, which is best done by the client app.
+    // strips_[strip]->SetPixel(pixel, col.red, col.green, col.blue);
   }
 
   virtual void FlushFrame() {
@@ -77,7 +81,7 @@ static int usage(const char *progname) {
   fprintf(stderr, "usage: %s <options>\n", progname);
   fprintf(stderr, "Options:\n"
           "\t-S <strips>   : Number of connected LED strips (default: 16)\n"
-          "\t-L <len>      : Length of LED strips (default: 144)\n"
+          "\t-L <len>      : Length of LED strips (default: 480)\n"
           "\t-i <iface>    : network interface, such as eth0, wlan0. "
           "Default eth0\n"
           "\t-G <group>    : PixelPusher group (default: 0)\n"
@@ -96,7 +100,7 @@ int main(int argc, char *argv[]) {
   pp_options.artnet_channel = -1;
   pp_options.network_interface = "eth0";
   int num_strips = 16;
-  int strip_len = 144;
+  int strip_len = 480;
 
   int opt;
   while ((opt = getopt(argc, argv, "S:L:i:u:a:G:C:")) != -1) {
