@@ -31,21 +31,23 @@
 static const int kMaxUDPPacketSize = 65507;  // largest practical w/ IPv4 header
 static const int kDefaultUDPPacketSize = 1460;
 
+
+// APA102
+
 // Make faster or slower depending on how well the data lines work.
 // This was set at 4.  This limited frame rate to about 12FPS
 // with 16 outputs and 480 LEDs/output.  Too slow!
 // 12 MHz seems to work fine.
 // 16MHz causes APA102s past about 200 in the sequence to start freaking out.
-static const int kSPIClockMhz = 12;
+static const int kAPA102ClockMhz = 12;
 
-// Interface to our Spixels operated LED strips.
 class APA102SpixelsDevice : public pp::OutputDevice {
 public:
   APA102SpixelsDevice(int num_strips, int strip_len)
     : num_strips_(num_strips),
       strip_len_(strip_len),
       strips_(new spixels::LEDStrip* [ num_strips_ ]),
-      spi_(spixels::CreateDirectMultiSPI(kSPIClockMhz))
+      spi_(spixels::CreateDirectMultiSPI(kAPA102ClockMhz))
   {
     for (int strip = 0; strip < num_strips_; ++strip)
     {
@@ -133,6 +135,60 @@ private:
   spixels::MultiSPI *spi_;
 };
 
+
+
+// LPD6803 - not yet tested with hardware
+
+static const int kLPD6308ClockMhz = 4;
+
+class LPD6803SpixelsDevice : public pp::OutputDevice {
+public:
+  LPD6803SpixelsDevice(int num_strips, int strip_len)
+    : num_strips_(num_strips),
+      strip_len_(strip_len),
+      strips_(new spixels::LEDStrip* [ num_strips_ ]),
+      spi_(spixels::CreateDirectMultiSPI(kLPD6308ClockMhz))
+  {
+    for (int strip = 0; strip < num_strips_; ++strip)
+    {
+      strips_[strip] = spixels::CreateLPD6803Strip(spi_,
+      												spixels::MultiSPI::SPIPinForConnector(strip + 1),
+      												strip_len_);
+    }
+  }
+
+  ~LPD6803SpixelsDevice()
+  {
+    for (int strip = 0; strip < num_strips_; ++strip) delete strips_[strip];
+    delete [] strips_;
+    delete spi_;
+  }
+
+  virtual int num_strips() const { return num_strips_; }
+  virtual int num_pixel_per_strip() const { return strip_len_; }
+
+	virtual void SetPixel(uint32_t strip, uint32_t pixel, const ::pp::PixelColor &col)
+	{
+		if (strip < (uint32_t)num_strips_)
+		{
+			strips_[strip]->SetPixel8(pixel, col.red, col.green, col.blue);
+		}
+	}
+
+	virtual void FlushFrame()
+	{
+		spi_->SendBuffers();
+	}
+
+private:
+  const int num_strips_;
+  const int strip_len_;
+  spixels::LEDStrip **strips_;
+  spixels::MultiSPI *spi_;
+};
+
+
+
 static int usage(const char *progname) {
   fprintf(stderr, "usage: %s <options>\n", progname);
   fprintf(stderr, "Options:\n"
@@ -198,7 +254,9 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  APA102SpixelsDevice pixel_strips(num_strips, strip_len);
+	APA102SpixelsDevice pixel_strips(num_strips, strip_len);
+//	LPD6803SpixelsDevice pixel_strips(num_strips, strip_len);
+  
   if (!pp::StartPixelPusherServer(pp_options, &pixel_strips)) {
     return 1;
   }
