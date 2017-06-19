@@ -26,13 +26,16 @@
 #include "multi-spi.h"
 
 #include "pp-server.h"
+#include "pp-server/lib/universal-discovery-protocol.h"
 
 static const int kMaxUDPPacketSize = 65507;  // largest practical w/ IPv4 header
 static const int kDefaultUDPPacketSize = 1460;
 
 // Make faster or slower depending on how well the data lines work.
-// Henner had this set at 4.  This limited frame rate to about 12FPS
-// with 16 outputs and 480 LEDs/output
+// This was set at 4.  This limited frame rate to about 12FPS
+// with 16 outputs and 480 LEDs/output.  Too slow!
+// 12 MHz seems to work fine.
+// 16MHz causes APA102s past about 200 in the sequence to start freaking out.
 static const int kSPIClockMhz = 12;
 
 // Interface to our Spixels operated LED strips.
@@ -42,15 +45,19 @@ public:
     : num_strips_(num_strips),
       strip_len_(strip_len),
       strips_(new spixels::LEDStrip* [ num_strips_ ]),
-      spi_(spixels::CreateDirectMultiSPI(kSPIClockMhz)) {
-    for (int i = 0; i < num_strips_; ++i) {
-      strips_[i] = spixels::CreateAPA102Strip(
-        spi_, spixels::MultiSPI::SPIPinForConnector(i+1), strip_len_);
+      spi_(spixels::CreateDirectMultiSPI(kSPIClockMhz))
+  {
+    for (int strip = 0; strip < num_strips_; ++strip)
+    {
+      strips_[strip] = spixels::CreateAPA102Strip(spi_,
+      												spixels::MultiSPI::SPIPinForConnector(strip + 1),
+      												strip_len_);
     }
   }
 
-  ~APA102SpixelsDevice() {
-    for (int i = 0; i < num_strips_; ++i) delete strips_[i];
+  ~APA102SpixelsDevice()
+  {
+    for (int strip = 0; strip < num_strips_; ++strip) delete strips_[strip];
     delete [] strips_;
     delete spi_;
   }
@@ -58,17 +65,66 @@ public:
   virtual int num_strips() const { return num_strips_; }
   virtual int num_pixel_per_strip() const { return strip_len_; }
 
-  virtual void SetPixel(int strip, int pixel, const ::pp::PixelColor &col)
-  {
-    if ((strip >= 0) && (strip < num_strips_))
-    {
-	  strips_[strip]->SetPixel8(pixel, col.red, col.green, col.blue);
-	}
-  }
+	virtual void HandlePusherCommand(const char *buf, size_t size)
+	{
+		if (size >= 1)
+		{
+		 	switch (buf[0])
+		 	{
+		 	case PPPusherCommandGlobalBrightness :
+		 		if (size >= 3)
+		 		{
+		 			// 0x0FFFF is full brightness for PP
+		 			// 0x10000 if full brightness for spixels
+		 			// we could scale but it's probably just as accurate to just add 1
+		 			// APA102 will throw away the 11 LSbits anyway
+			  		uint32_t	const brightnessScale16 = (uint32_t)*(uint16_t*)(buf + 1) + 1;
 
-  virtual void FlushFrame() {
-    spi_->SendBuffers();
-  }
+//		 			fprintf(stderr, "PPPusherCommandGlobalBrightness received - 0x%04X\n", brightnessScale16);
+		 			for (int strip = 0; strip < num_strips_; strip++)
+		 			{
+		 				strips_[strip]->SetBrightnessScale16(brightnessScale16);
+		 			}
+		 		}
+		 		break;
+		 	case PPPusherCommandStripBrightness :
+			  	if (size >= 4)
+			  	{
+			  		uint32_t		const strip = buf[1];
+			  		
+			  		if (strip < (uint32_t)num_strips_)
+			  		{
+			 			// 0x0FFFF is full brightness for PP
+			 			// 0x10000 if full brightness for spixels
+			 			// we could scale but it's probably just as accurate to just add 1
+			 			// APA102 will throw away the 11 LSbits anyway
+				  		uint32_t	const brightnessScale16 = (uint32_t)*(uint16_t*)(buf + 2) + 1;
+				  		
+//			 			fprintf(stderr, "PPPusherCommandStripBrightness received - 0x%04X for strip %u\n",
+//			 					brightnessScale16, strip);
+			  			strips_[strip]->SetBrightnessScale16(brightnessScale16);
+			  		}
+			  	}
+			  	break;
+			default :
+			 	fprintf(stderr, "HandlePusherCommand() - unknown command:%u\n", buf[0]);
+				break;
+		 	}
+		}
+	}
+  
+	virtual void SetPixel(uint32_t strip, uint32_t pixel, const ::pp::PixelColor &col)
+	{
+		if (strip < (uint32_t)num_strips_)
+		{
+			strips_[strip]->SetPixel8(pixel, col.red, col.green, col.blue);
+		}
+	}
+
+	virtual void FlushFrame()
+	{
+		spi_->SendBuffers();
+	}
 
 private:
   const int num_strips_;
@@ -99,7 +155,7 @@ int main(int argc, char *argv[]) {
   pp_options.artnet_universe = -1;
   pp_options.artnet_channel = -1;
   pp_options.network_interface = "eth0";
-  int num_strips = 16;
+  int num_strips = 8;
   int strip_len = 480;
 
   int opt;
