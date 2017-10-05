@@ -85,7 +85,7 @@ public:
 //		 			fprintf(stderr, "PPPusherCommandGlobalBrightness received - 0x%04X\n", brightnessScale16);
 		 			for (int strip = 0; strip < num_strips_; strip++)
 		 			{
-		 				strips_[strip]->SetBrightnessScale16(brightnessScale16);
+		 				strips_[strip]->SetBrightnessScale(brightnessScale16 / 65536.0f);
 		 			}
 		 		}
 		 		break;
@@ -104,7 +104,7 @@ public:
 				  		
 //			 			fprintf(stderr, "PPPusherCommandStripBrightness received - 0x%04X for strip %u\n",
 //			 					brightnessScale16, strip);
-			  			strips_[strip]->SetBrightnessScale16(brightnessScale16);
+			  			strips_[strip]->SetBrightnessScale(brightnessScale16 / 65536.0f);
 			  		}
 			  	}
 			  	break;
