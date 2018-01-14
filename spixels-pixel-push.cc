@@ -30,24 +30,24 @@
 static const int kMaxUDPPacketSize = 65507;  // largest practical w/ IPv4 header
 static const int kDefaultUDPPacketSize = 1460;
 
-// Make faster or slower depending on how well the data lines work.
-static const int kSPIClockMhz = 4;
+typedef spixels::LEDStrip *(*StripFactory)(spixels::MultiSPI *spi, int connector, int count);
 
-// Interface to our Spixels operated LED strips.
-class APA102SpixelsDevice : public pp::OutputDevice {
+// Adapter of Spixels operated LED strips to pp::OutputDevice
+class SpixelsDevice : public pp::OutputDevice {
 public:
-  APA102SpixelsDevice(int num_strips, int strip_len)
+  SpixelsDevice(int spi_mhz,
+                StripFactory strip_factory, int num_strips, int strip_len)
     : num_strips_(num_strips),
       strip_len_(strip_len),
       strips_(new spixels::LEDStrip* [ num_strips_ ]),
-      spi_(spixels::CreateDirectMultiSPI(kSPIClockMhz)) {
+      spi_(spixels::CreateDirectMultiSPI(spi_mhz)) {
     for (int i = 0; i < num_strips_; ++i) {
-      strips_[i] = spixels::CreateAPA102Strip(
+      strips_[i] = strip_factory(
         spi_, spixels::MultiSPI::SPIPinForConnector(i+1), strip_len_);
     }
   }
 
-  ~APA102SpixelsDevice() {
+  ~SpixelsDevice() {
     for (int i = 0; i < num_strips_; ++i) delete strips_[i];
     delete [] strips_;
     delete spi_;
@@ -76,6 +76,8 @@ private:
 static int usage(const char *progname) {
   fprintf(stderr, "usage: %s <options>\n", progname);
   fprintf(stderr, "Options:\n"
+          "\t-T <type>     : One of APA102, LDP6803, WS2801; default: APA102\n"
+          "\t-c <clockspeed>: SPI clock-speed in Mhz [1..15]. Default: 4\n"
           "\t-S <strips>   : Number of connected LED strips (default: 16)\n"
           "\t-L <len>      : Length of LED strips (default: 144)\n"
           "\t-i <iface>    : network interface, such as eth0, wlan0. "
@@ -90,6 +92,13 @@ static int usage(const char *progname) {
   return 1;
 }
 
+static StripFactory parseType(const char *type) {
+  if (strcasecmp(type, "APA102") == 0) return &spixels::CreateAPA102Strip;
+  if (strcasecmp(type, "WS2801") == 0) return &spixels::CreateWS2801Strip;
+  if (strcasecmp(type, "LDP6803") == 0) return &spixels::CreateLPD6803Strip;
+  return NULL;
+}
+
 int main(int argc, char *argv[]) {
   pp::PPOptions pp_options;
   pp_options.artnet_universe = -1;
@@ -97,10 +106,19 @@ int main(int argc, char *argv[]) {
   pp_options.network_interface = "eth0";
   int num_strips = 16;
   int strip_len = 144;
+  int SPI_clock_mhz = 4;
+
+  StripFactory strip_creator = &spixels::CreateAPA102Strip;
 
   int opt;
-  while ((opt = getopt(argc, argv, "S:L:i:u:a:G:C:")) != -1) {
+  while ((opt = getopt(argc, argv, "S:L:i:u:a:G:C:T:c:")) != -1) {
     switch (opt) {
+    case 'T':
+      strip_creator = parseType(optarg);
+      break;
+    case 'c':
+      SPI_clock_mhz = atoi(optarg);
+      break;
     case 'S':
       num_strips = atoi(optarg);
       break;
@@ -131,6 +149,15 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (strip_creator == NULL) {
+    fprintf(stderr, "Invalid type of LED strip given with -T\n");
+    return 1;
+  }
+  if (SPI_clock_mhz < 1 || SPI_clock_mhz > 15) {
+    fprintf(stderr, "SPI clock speed out of range [1..15]\n");
+    return 1;
+  }
+
   // Some parameter checks.
   if (getuid() != 0) {
     fprintf(stderr, "Must run as root to be able to access /dev/mem\n"
@@ -138,7 +165,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  APA102SpixelsDevice pixel_strips(num_strips, strip_len);
+  SpixelsDevice pixel_strips(SPI_clock_mhz,
+                             strip_creator, num_strips, strip_len);
   if (!pp::StartPixelPusherServer(pp_options, &pixel_strips)) {
     return 1;
   }
