@@ -17,6 +17,8 @@ following options.
 ```
 usage: ./spixels-pixel-push <options>
 Options:
+        -T <type>     : One of APA102, LDP6803, WS2801; default: APA102
+        -c <clockspeed>: SPI clock-speed in Mhz [1..15]. Default: 4
         -S <strips>   : Number of connected LED strips (default: 16)
         -L <len>      : Length of LED strips (default: 144)
         -i <iface>    : network interface, such as eth0, wlan0. Default eth0
